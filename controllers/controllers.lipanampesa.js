@@ -1,15 +1,15 @@
 import request from "request";
+import axios from "axios";
 import 'dotenv/config'
-import { getTimeStamp } from "../utils/utils.timestamp.js";
+import { getTimeStamp } from "../utils/utils.timestamp.js"
 import ngrok from 'ngrok'
 import { time } from "console";
 
 
+export const initiateSTKPush = async (req, res) => {
+    try {
 
-export const initiateSTKPush = async(req, res) => {
-    try{
-
-        const {amount, phone,Order_ID} = req.body
+        const { amount, phone, Order_ID } = req.body
         const url = "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest"
         const auth = "Bearer " + req.safaricom_access_token
 
@@ -22,7 +22,7 @@ export const initiateSTKPush = async(req, res) => {
         await api.listTunnels();
 
 
-        console.log("callback ",callback_url)
+        console.log("callback ", callback_url)
         request(
             {
                 url: url,
@@ -36,65 +36,70 @@ export const initiateSTKPush = async(req, res) => {
                     "Timestamp": timestamp,
                     "TransactionType": "CustomerPayBillOnline",
                     "Amount": amount,
-                    "PartyA": 254708374149,
+                    "PartyA": phone,
                     "PartyB": process.env.BUSINESS_SHORT_CODE,
                     "PhoneNumber": phone,
                     "CallBackURL": `${callback_url}/api/stkPushCallback/${Order_ID}`,
                     "AccountReference": "Venum",
-                    "TransactionDesc": "Testing stk push"
+                    "TransactionDesc": "Paid online"
                 }
             },
             function (e, response, body) {
                 if (e) {
                     console.error(e)
                     res.status(503).send({
-                        message:"Error with the stk push",
-                        error : e
+                        message: "Error with the stk push",
+                        error: e
                     })
                 } else {
                     res.status(200).json(body)
                 }
             }
         )
-    }catch (e) {
-        console.error("Error while trying to create LipaNaMpesa details",e)
+    } catch (e) {
+        console.error("Error while trying to create LipaNaMpesa details", e)
         res.status(503).send({
-            message:"Something went wrong while trying to create LipaNaMpesa details. Contact admin",
-            error : e
+            message: "Something went wrong while trying to create LipaNaMpesa details. Contact admin",
+            error: e
         })
     }
 }
 
 
-// @desc callback route Safaricom will post transaction status
-// @method POST
-// @route /stkPushCallback/:Order_ID
-// @access public
-export const stkPushCallback = async(req, res) => {
-    try{
+//stkPushCallback
+export const stkPushCallback = async (req, res) => {
+    const Order_ID = req.params.Order_ID;
+    const responseData = req.body;
 
-    //    order id
-        const {Order_ID} = req.params
+    console.log('Full STK Push Callback Response:', JSON.stringify(responseData, null, 2));
 
-        //callback details
+    try {
+        // Validate the structure of the incoming data
+        // order id
+        const { Order_ID } = req.params
 
+        //call back details
         const {
             MerchantRequestID,
             CheckoutRequestID,
             ResultCode,
             ResultDesc,
             CallbackMetadata
-                 }   = req.body.Body.stkCallback
 
-    //     get the meta data from the meta
+        } = req.body.Body.stkCallback
+
+
+        //     get the meta data from the meta
         const meta = Object.values(await CallbackMetadata.Item)
         const PhoneNumber = meta.find(o => o.Name === 'PhoneNumber').Value.toString()
         const Amount = meta.find(o => o.Name === 'Amount').Value.toString()
         const MpesaReceiptNumber = meta.find(o => o.Name === 'MpesaReceiptNumber').Value.toString()
         const TransactionDate = meta.find(o => o.Name === 'TransactionDate').Value.toString()
 
-        // do something with the data
-        console.log("-".repeat(20)," OUTPUT IN THE CALLBACK ", "-".repeat(20))
+        console.log("meta", meta)
+
+        //do something with the data
+        console.log("-".repeat(20), " OUTPUT IN THE CALLBACK ", "-".repeat(20))
         console.log(`
             Order_ID : ${Order_ID},
             MerchantRequestID : ${MerchantRequestID},
@@ -109,29 +114,27 @@ export const stkPushCallback = async(req, res) => {
 
         res.json(true)
 
-    }catch (e) {
-        console.error("Error while trying to update LipaNaMpesa details from the callback",e)
+    } catch (e) {
+        console.error("Error while trying to update LipaNaMpesa details from the callback", e)
         res.status(503).send({
-            message:"Something went wrong with the callback",
-            error : e.message
+            message: "Something went wrong with the callback",
+            error: e.message
         })
     }
-}
 
 
-// @desc Check from safaricom servers the status of a transaction
-// @method GET
-// @route /confirmPayment/:CheckoutRequestID
-// @access public
-export const confirmPayment = async(req, res) => {
-    try{
+};
 
+
+//confirming payment
+
+export const confirmPayment = async (req, res) => {
+    try {
 
         const url = "https://sandbox.safaricom.co.ke/mpesa/stkpushquery/v1/query"
         const auth = "Bearer " + req.safaricom_access_token
 
-        const timestamp = getTimestamp()
-        //shortcode + passkey + timestamp
+        const timestamp = getTimeStamp()
         const password = new Buffer.from(process.env.BUSINESS_SHORT_CODE + process.env.PASS_KEY + timestamp).toString('base64')
 
 
@@ -143,7 +146,7 @@ export const confirmPayment = async(req, res) => {
                     "Authorization": auth
                 },
                 json: {
-                    "BusinessShortCode":process.env.BUSINESS_SHORT_CODE,
+                    "BusinessShortCode": process.env.BUSINESS_SHORT_CODE,
                     "Password": password,
                     "Timestamp": timestamp,
                     "CheckoutRequestID": req.params.CheckoutRequestID,
@@ -154,19 +157,19 @@ export const confirmPayment = async(req, res) => {
                 if (error) {
                     console.log(error)
                     res.status(503).send({
-                        message:"Something went wrong while trying to create LipaNaMpesa details. Contact admin",
-                        error : error
+                        message: "Something went wrong while trying to create LipaNaMpesa details. Contact admin",
+                        error: error
                     })
                 } else {
                     res.status(200).json(body)
                 }
             }
         )
-    }catch (e) {
-        console.error("Error while trying to create LipaNaMpesa details",e)
+    } catch (e) {
+        console.error("Error while trying to create LipaNaMpesa details", e)
         res.status(503).send({
-            message:"Something went wrong while trying to create LipaNaMpesa details. Contact admin",
-            error : e
+            message: "Something went wrong while trying to create LipaNaMpesa details. Contact admin",
+            error: e
         })
     }
 }

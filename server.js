@@ -6,8 +6,10 @@ import 'dotenv/config'
 const app = express()
 
 // middlewares
-app.use(express.json())
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(cors())
+
 
 // import routes
 import lipaNaMpesaRoutes from "./routes/routes.lipanampesa.js"
